@@ -232,9 +232,10 @@ QImage GeoTiffHandler::exportToQImage(GDALDatasetH dataset)
 
         image = QImage(width, height, QImage::Format_RGB32);
         for (auto y = 0; y < height; y++) {
+            QRgb* scanLine = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (auto x = 0; x < width; x++) {
                 int index = y * width + x;
-                image.setPixel(x, y, qRgb(redData[index], greenData[index], blueData[index]));
+                scanLine[x] = qRgb(redData[index], greenData[index], blueData[index]);
             }
         }
     } else if (bandCount == 1) {
@@ -254,10 +255,11 @@ QImage GeoTiffHandler::exportToQImage(GDALDatasetH dataset)
 
         image = QImage(width, height, QImage::Format_RGB32);
         for (auto y = 0; y < height; y++) {
+            QRgb* scanLine = reinterpret_cast<QRgb*>(image.scanLine(y));
             for (auto x = 0; x < width; x++) {
                 int index = y * width + x;
                 uint8_t value = data[index];
-                image.setPixel(x, y, qRgb(value, value, value));
+                scanLine[x] = qRgb(value, value, value);
             }
         }
     } else {
