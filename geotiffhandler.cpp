@@ -226,7 +226,7 @@ QImage GeoTiffHandler::exportToQImage(GDALDatasetH dataset)
         err = GDALRasterIO(greenBand, GF_Read, 0, 0, width, height, greenData.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
             return QImage();
-        err = GDALRasterIO(blueBand, GF_Read, 0, 0, width, height, greenData.data(), width, height, GDT_Byte, 0, 0);
+        err = GDALRasterIO(blueBand, GF_Read, 0, 0, width, height, blueData.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
             return QImage();
 
