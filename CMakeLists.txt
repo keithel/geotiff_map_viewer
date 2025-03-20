@@ -5,6 +5,8 @@ set(PROJECT_BINARY_NAME "app${CMAKE_PROJECT_NAME}")
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Add the home directory to the CMAKE_PREFIX_PATH so that libraries installed with PREFIX set to
+# home will be found. In my case, that is where I installed GDAL to.
 set(CMAKE_PREFIX_PATH "$ENV{HOME}" ${CMAKE_PREFIX_PATH})
 
 find_package(Qt6 REQUIRED COMPONENTS Quick HttpServer)
