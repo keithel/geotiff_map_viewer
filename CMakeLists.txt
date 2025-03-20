@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_PREFIX_PATH "$ENV{HOME}" ${CMAKE_PREFIX_PATH})
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick HttpServer)
 find_package(GDAL REQUIRED)
 include_directories(${GDAL_INCLUDE_DIRS})
 
@@ -33,6 +33,10 @@ qt_add_qml_module(${PROJECT_BINARY_NAME}
         src/geotiffhandler.cpp
         src/geotiffimageprovider.h
         src/geotiffimageprovider.cpp
+        src/appconfig.h
+        src/appconfig.cpp
+        src/thunderforestconfigserver.h
+        src/thunderforestconfigserver.cpp
 )
 
 # Leave for image resources, etc.
@@ -59,7 +63,7 @@ set_target_properties(${PROJECT_BINARY_NAME} PROPERTIES
 )
 
 target_link_libraries(${PROJECT_BINARY_NAME}
-    PRIVATE Qt6::Quick
+    PRIVATE Qt6::Quick Qt::HttpServer
     PRIVATE ${GDAL_LIBRARIES}
 )
 
