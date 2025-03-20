@@ -13,20 +13,26 @@ include_directories(${GDAL_INCLUDE_DIRS})
 
 qt_standard_project_setup(REQUIRES 6.5)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 qt_add_executable(${PROJECT_BINARY_NAME}
-    main.cpp
+    src/main.cpp
+)
+
+set_source_files_properties(qml/Main.qml PROPERTIES
+    QT_RESOURCE_ALIAS Main.qml
 )
 
 qt_add_qml_module(${PROJECT_BINARY_NAME}
     URI geotiff_viewer
     VERSION 1.0
     QML_FILES
-        Main.qml
+        qml/Main.qml
     SOURCES
-        geotiffhandler.h
-        geotiffhandler.cpp
-        geotiffimageprovider.h
-        geotiffimageprovider.cpp
+        src/geotiffhandler.h
+        src/geotiffhandler.cpp
+        src/geotiffimageprovider.h
+        src/geotiffimageprovider.cpp
 )
 
 # Leave for image resources, etc.
