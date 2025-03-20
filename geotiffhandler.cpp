@@ -27,33 +27,10 @@ GeoTiffHandler::~GeoTiffHandler()
 QImage GeoTiffHandler::loadGeoTiffImage(const QUrl &fileUrl)
 {
     GDALDatasetH dataset = openGeoTiff(fileUrl);
-    return exportToQImage(dataset);
-}
-
-void GeoTiffHandler::loadGeoTIFF(const QUrl &fileUrl)
-{
-    m_dataset = openGeoTiff(fileUrl);
-    if (m_dataset == nullptr)
-        return;
-
-    // Extract metadata
-    extractMetadata();
-
-    // Export to QImage for display
-    QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
-                       QDir::separator() + "geotiff_preview.png";
-
-    QImage image = exportToQImage(m_dataset);
-    bool saveResult = image.isNull() ? image.save(tempPath) : false;
-    if (saveResult) {
-        m_imageSource = "file:///" + tempPath;
-        emit imageSourceChanged();
-        m_statusMessage = "GeoTIFF loaded successfully";
-    } else {
-        m_statusMessage = "Failed to generate preview image";
-    }
-
+    QImage image(exportToQImage(dataset));
+    m_statusMessage = image.isNull() ? "Failed to load GeoTiff into QImage" : "GeoTiff loaded into QImage successfully";
     emit statusMessageChanged();
+    return image;
 }
 
 void GeoTiffHandler::loadMetadata(const QUrl &fileUrl)

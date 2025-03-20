@@ -14,7 +14,6 @@ class GeoTiffHandler : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
-    Q_PROPERTY(QString imageSource READ imageSource NOTIFY imageSourceChanged FINAL)
     Q_PROPERTY(QString currentFile READ currentFile NOTIFY currentFileChanged FINAL)
     Q_PROPERTY(QString fileName READ fileName NOTIFY fileNameChanged FINAL)
     Q_PROPERTY(QString dimensions READ dimensions NOTIFY dimensionsChanged FINAL)
@@ -31,10 +30,8 @@ public:
     ~GeoTiffHandler();
 
     QImage loadGeoTiffImage(const QUrl &fileUrl);
-    Q_INVOKABLE void loadGeoTIFF(const QUrl &fileUrl);
     Q_INVOKABLE void loadMetadata(const QUrl &fileUrl);
 
-    inline QString imageSource() const { return m_imageSource; }
     inline QString currentFile() const { return m_currentFile; }
     inline QString fileName() const { return m_fileName; }
     inline QString dimensions() const { return m_dimensions; }
@@ -48,7 +45,6 @@ public:
     inline QString statusMessage() const { return m_statusMessage; }
 
 signals:
-    void imageSourceChanged();
     void currentFileChanged();
     void fileNameChanged();
     void dimensionsChanged();
@@ -66,7 +62,6 @@ private:
 
 private:
     GDALDataset *m_dataset = nullptr;
-    QString m_imageSource;
     QString m_currentFile;
     QString m_fileName;
     QString m_dimensions;
