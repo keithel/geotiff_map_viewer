@@ -9,8 +9,8 @@ import QtPositioning
 import geotiff_viewer
 
 ApplicationWindow {
-    width: 640
-    height: 480
+    width: 1024
+    height: 768
     visible: true
     title: qsTr("GeoTIFF Viewer")
 
@@ -19,7 +19,7 @@ ApplicationWindow {
         console.log("set image.source to " + image.source)
         GeoTiffHandler.loadMetadata(url)
         tiffImgMQI.coordinate = QtPositioning.coordinate(GeoTiffHandler.boundsMaxY, GeoTiffHandler.boundsMinX)
-        tiffImgMQI.zoomLevel = 14
+        imgZoomLevelChoice.value = 140;
     }
 
     Component.onCompleted: loadTiff("file:///home/kyzik/Build/l3h-insight/austro-hungarian-maps/sheets_geo/2868_000_geo.tif")
@@ -39,9 +39,16 @@ ApplicationWindow {
 
         ToolBar {
             Layout.fillWidth: true
+            Layout.preferredHeight: contentHeight + 10
 
             RowLayout {
                 anchors.fill: parent
+                Layout.alignment: Qt.AlignVCenter
+
+                Button {
+                    text: "Open GeoTIFF"
+                    onClicked: fileDialog.open()
+                }
 
                 SpinBox {
                     id: mapChoice
@@ -49,14 +56,11 @@ ApplicationWindow {
                     to: 6
                     value: 0
                     wrap: true
-                    WheelHandler {
-                        onWheel: (wheel) => {
-                            if(wheel.angleDelta.y > 0)
-                                mapChoice.increase();
-                            else
-                                mapChoice.decrease();
-                        }
-                    }
+                    WheelHandler { onWheel: (wheel) => { if(wheel.angleDelta.y > 0) mapChoice.increase(); else mapChoice.decrease(); } }
+                    hoverEnabled: true
+                    ToolTip.text: "Choose between map tilesets"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Application.styleHints.mousePressAndHoldInterval
                 }
 
                 SpinBox {
@@ -66,11 +70,22 @@ ApplicationWindow {
                     value: 75
                     stepSize: 5
                     WheelHandler { onWheel: (wheel) => { if(wheel.angleDelta.y > 0) imgOpacityChoice.increase(); else imgOpacityChoice.decrease() } }
+                    hoverEnabled: true
+                    ToolTip.text: "Set opacity of image"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Application.styleHints.mousePressAndHoldInterval
                 }
 
-                Button {
-                    text: "Open GeoTIFF"
-                    onClicked: fileDialog.open()
+                SpinBox {
+                    id: imgZoomLevelChoice
+                    from: 10
+                    to: 200
+                    // stepSize: 5
+                    WheelHandler { onWheel: (wheel) => { if(wheel.angleDelta.y > 0) imgZoomLevelChoice.increase(); else imgZoomLevelChoice.decrease() } }
+                    hoverEnabled: true
+                    ToolTip.text: "Set the map zoomlevel at which the image is shown at 100% scale"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Application.styleHints.mousePressAndHoldInterval
                 }
 
                 Label {
@@ -78,21 +93,12 @@ ApplicationWindow {
                     text: GeoTiffHandler.currentFile || "No file loaded"
                     elide: Text.ElideMiddle
                     horizontalAlignment: Text.AlignHCenter
-                }
-
-                Button {
-                    text: "Zoom in"
-                    onClicked: imageViewer.zoomIn()
-                }
-
-                Button {
-                    text: "Zoom out"
-                    onClicked: imageViewer.zoomOut()
-                }
-
-                Button {
-                    text: "Fit to View"
-                    onClicked: imageViewer.resetZoom()
+                    HoverHandler {
+                        id: fileLabelHoverHandler
+                    }
+                    ToolTip.text: "path of GeoTIFF file that is showing"
+                    ToolTip.visible: fileLabelHoverHandler.hovered
+                    ToolTip.delay: Application.styleHints.mousePressAndHoldInterval
                 }
             }
         }
@@ -112,8 +118,8 @@ ApplicationWindow {
                     anchors.fill: parent
 
                     plugin: mapPlugin
-                    center: QtPositioning.coordinate(52.74,21.83) // Austro-Hungary
-                    zoomLevel: 14
+                    center: QtPositioning.coordinate(52.9,22) // Austro-Hungary
+                    zoomLevel: 10.5
                     activeMapType: supportedMapTypes[mapChoice.value]
                     property geoCoordinate startCentroid
                     property geoCoordinate cursorCoordinate;
@@ -190,9 +196,9 @@ ApplicationWindow {
                         sourceItem: Image {
                             id: image
                         }
-                        coordinate: QtPositioning.coordinate(42.99486, -71.463457)
-                        anchorPoint: Qt.point(0,0)
-                        zoomLevel: 17
+                        coordinate: QtPositioning.coordinate(0, 0)
+                        anchorPoint: Qt.point(0,0)//image.width,image.height)
+                        zoomLevel: imgZoomLevelChoice.value/10
                         opacity: (imgOpacityChoice.value*1.0)/100
                     }
                 }
