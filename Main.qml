@@ -12,10 +12,6 @@ ApplicationWindow {
     visible: true
     title: qsTr("GeoTIFF Viewer")
 
-    GeoTiffHandler {
-        id: geoTiffHandler
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 10
@@ -33,7 +29,7 @@ ApplicationWindow {
 
                 Label {
                     Layout.fillWidth: true
-                    text: geoTiffHandler.currentFile || "No file loaded"
+                    text: GeoTiffHandler.currentFile || "No file loaded"
                     elide: Text.ElideMiddle
                     horizontalAlignment: Text.AlignHCenter
                 }
@@ -203,28 +199,28 @@ ApplicationWindow {
                             anchors.fill: parent
 
                             Label {
-                                text: "<b>File:</b> " + (geoTiffHandler.fileName || "None")
+                                text: "<b>File:</b> " + (GeoTiffHandler.fileName || "None")
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
 
                             Label {
-                                text: "<b>Dimensions:</b> " + (geoTiffHandler.dimensions || "Unknown")
-                                visible: geoTiffHandler.dimensions !== ""
+                                text: "<b>Dimensions:</b> " + (GeoTiffHandler.dimensions || "Unknown")
+                                visible: GeoTiffHandler.dimensions !== ""
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
 
                             Label {
-                                text: "<b>Coordinate System:</b> " + (geoTiffHandler.coordinateSystem || "Unknown")
-                                visible: geoTiffHandler.coordinateSystem !== ""
+                                text: "<b>Coordinate System:</b> " + (GeoTiffHandler.coordinateSystem || "Unknown")
+                                visible: GeoTiffHandler.coordinateSystem !== ""
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
 
                             Label {
-                                text: "<b>Projection:</b> " + (geoTiffHandler.projection || "Unknown")
-                                visible: geoTiffHandler.projection !== ""
+                                text: "<b>Projection:</b> " + (GeoTiffHandler.projection || "Unknown")
+                                visible: GeoTiffHandler.projection !== ""
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -241,25 +237,25 @@ ApplicationWindow {
 
                             Label { text: "Min X:" }
                             Label {
-                                text: geoTiffHandler.boundsMinX || "Unknown"
+                                text: GeoTiffHandler.boundsMinX || "Unknown"
                                 Layout.fillWidth: true
                             }
 
                             Label { text: "Min Y:" }
                             Label {
-                                text: geoTiffHandler.boundsMinY || "Unknown"
+                                text: GeoTiffHandler.boundsMinY || "Unknown"
                                 Layout.fillWidth: true
                             }
 
                             Label { text: "Max X:" }
                             Label {
-                                text: geoTiffHandler.boundsMaxX || "Unknown"
+                                text: GeoTiffHandler.boundsMaxX || "Unknown"
                                 Layout.fillWidth: true
                             }
 
                             Label { text: "Max Y:" }
                             Label {
-                                text: geoTiffHandler.boundsMaxY || "Unknown"
+                                text: GeoTiffHandler.boundsMaxY || "Unknown"
                                 Layout.fillWidth: true
                             }
                         }
@@ -275,7 +271,7 @@ ApplicationWindow {
                             clip: true
 
                             ListView {
-                                model: geoTiffHandler.bandsModel
+                                model: GeoTiffHandler.bandsModel
                                 delegate: ItemDelegate {
                                     width: parent.width
                                     contentItem: Label {
@@ -300,7 +296,7 @@ ApplicationWindow {
 
             Label {
                 Layout.fillWidth: true
-                text: geoTiffHandler.statusMessage || "Ready"
+                text: GeoTiffHandler.statusMessage || "Ready"
                 elide: Text.ElideRight
             }
         }
@@ -314,7 +310,7 @@ ApplicationWindow {
 
         onAccepted: {
             image.source = "image://geotiff/" + fileDialog.selectedFile;
-            geoTiffHandler.loadMetadata(fileDialog.selectedFile)
+            GeoTiffHandler.loadMetadata(fileDialog.selectedFile)
         }
     }
 }

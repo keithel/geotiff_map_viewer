@@ -1,4 +1,5 @@
 #include "geotiffhandler.h"
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
@@ -24,10 +25,30 @@ GeoTiffHandler::~GeoTiffHandler()
     closeDataset();
 }
 
+GeoTiffHandler *GeoTiffHandler::instance() {
+    if (s_singletonInstance == nullptr)
+        s_singletonInstance = new GeoTiffHandler(qApp);
+    return s_singletonInstance;
+}
+
+GeoTiffHandler *GeoTiffHandler::create(QQmlEngine *, QJSEngine *engine)
+{
+    Q_ASSERT(s_singletonInstance);
+    Q_ASSERT(engine->thread() == s_singletonInstance->thread());
+    if (s_engine)
+        Q_ASSERT(engine == s_engine);
+    else
+        s_engine = engine;
+
+    QJSEngine::setObjectOwnership(s_singletonInstance, QJSEngine::CppOwnership);
+    return s_singletonInstance;
+}
+
 QImage GeoTiffHandler::loadGeoTiffImage(const QUrl &fileUrl)
 {
-    GDALDatasetH dataset = openGeoTiff(fileUrl);
-    QImage image(exportToQImage(dataset));
+    closeDataset();
+    m_dataset = openGeoTiff(fileUrl);
+    QImage image(exportToQImage(m_dataset));
     m_statusMessage = image.isNull() ? "Failed to load GeoTiff into QImage" : "GeoTiff loaded into QImage successfully";
     emit statusMessageChanged();
     return image;
@@ -35,9 +56,12 @@ QImage GeoTiffHandler::loadGeoTiffImage(const QUrl &fileUrl)
 
 void GeoTiffHandler::loadMetadata(const QUrl &fileUrl)
 {
-    m_dataset = openGeoTiff(fileUrl);
-    if (m_dataset == nullptr)
-        return;
+    if(fileUrl.toLocalFile() != m_currentFile) {
+        closeDataset();
+        m_dataset = openGeoTiff(fileUrl);
+        if (m_dataset == nullptr)
+            return;
+    }
 
     // Extract metadata
     extractMetadata();
@@ -48,8 +72,6 @@ void GeoTiffHandler::loadMetadata(const QUrl &fileUrl)
 
 GDALDataset *GeoTiffHandler::openGeoTiff(const QUrl &fileUrl)
 {
-    closeDataset();
-
     // Convert QUrl to local file path
     QString filePath = fileUrl.toLocalFile();
 

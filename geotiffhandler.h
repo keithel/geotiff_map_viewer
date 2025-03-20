@@ -13,7 +13,9 @@
 class GeoTiffHandler : public QObject
 {
     Q_OBJECT
+    QML_SINGLETON
     QML_ELEMENT
+
     Q_PROPERTY(QString currentFile READ currentFile NOTIFY currentFileChanged FINAL)
     Q_PROPERTY(QString fileName READ fileName NOTIFY fileNameChanged FINAL)
     Q_PROPERTY(QString dimensions READ dimensions NOTIFY dimensionsChanged FINAL)
@@ -25,9 +27,13 @@ class GeoTiffHandler : public QObject
     Q_PROPERTY(QString boundsMaxY READ boundsMaxY NOTIFY boundsChanged FINAL)
     Q_PROPERTY(QStringList bandsModel READ bandsModel NOTIFY bandsModelChanged FINAL)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged FINAL)
+
 public:
-    explicit GeoTiffHandler(QObject *parent = nullptr);
+    explicit GeoTiffHandler(QObject *parent);
     ~GeoTiffHandler();
+
+    static GeoTiffHandler *create(QQmlEngine *, QJSEngine *engine);
+    static GeoTiffHandler *instance();
 
     QImage loadGeoTiffImage(const QUrl &fileUrl);
     Q_INVOKABLE void loadMetadata(const QUrl &fileUrl);
@@ -73,6 +79,9 @@ private:
     QString m_boundsMaxY;
     QStringList m_bandsModel;
     QString m_statusMessage;
+
+    inline static GeoTiffHandler * s_singletonInstance = nullptr;
+    inline static QJSEngine *s_engine = nullptr;
 };
 
 #endif // GEOTIFFHANDLER_H

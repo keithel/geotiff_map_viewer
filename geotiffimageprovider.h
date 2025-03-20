@@ -14,7 +14,7 @@ public:
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize);
 
 private:
-    GeoTiffHandler m_geoTiffHandler;
+    GeoTiffHandler *m_geoTiffHandler;
 };
 
 #endif // GEOTIFFIMAGEPROVIDER_H
