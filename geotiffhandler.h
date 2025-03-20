@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
+#include <QImage>
 #include <QUrl>
 #include <QStringList>
 #include <gdal_priv.h>
@@ -29,7 +30,9 @@ public:
     explicit GeoTiffHandler(QObject *parent = nullptr);
     ~GeoTiffHandler();
 
+    QImage loadGeoTiffImage(const QUrl &fileUrl);
     Q_INVOKABLE void loadGeoTIFF(const QUrl &fileUrl);
+    Q_INVOKABLE void loadMetadata(const QUrl &fileUrl);
 
     inline QString imageSource() const { return m_imageSource; }
     inline QString currentFile() const { return m_currentFile; }
@@ -56,9 +59,10 @@ signals:
     void statusMessageChanged();
 
 private:
+    GDALDataset* openGeoTiff(const QUrl &fileUrl);
     void closeDataset();
     void extractMetadata();
-    bool exportToQImage(const QString &outputPath);
+    QImage exportToQImage(GDALDatasetH dataset);
 
 private:
     GDALDataset *m_dataset = nullptr;

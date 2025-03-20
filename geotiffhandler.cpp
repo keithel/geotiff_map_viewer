@@ -24,7 +24,52 @@ GeoTiffHandler::~GeoTiffHandler()
     closeDataset();
 }
 
+QImage GeoTiffHandler::loadGeoTiffImage(const QUrl &fileUrl)
+{
+    GDALDatasetH dataset = openGeoTiff(fileUrl);
+    return exportToQImage(dataset);
+}
+
 void GeoTiffHandler::loadGeoTIFF(const QUrl &fileUrl)
+{
+    m_dataset = openGeoTiff(fileUrl);
+    if (m_dataset == nullptr)
+        return;
+
+    // Extract metadata
+    extractMetadata();
+
+    // Export to QImage for display
+    QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
+                       QDir::separator() + "geotiff_preview.png";
+
+    QImage image = exportToQImage(m_dataset);
+    bool saveResult = image.isNull() ? image.save(tempPath) : false;
+    if (saveResult) {
+        m_imageSource = "file:///" + tempPath;
+        emit imageSourceChanged();
+        m_statusMessage = "GeoTIFF loaded successfully";
+    } else {
+        m_statusMessage = "Failed to generate preview image";
+    }
+
+    emit statusMessageChanged();
+}
+
+void GeoTiffHandler::loadMetadata(const QUrl &fileUrl)
+{
+    m_dataset = openGeoTiff(fileUrl);
+    if (m_dataset == nullptr)
+        return;
+
+    // Extract metadata
+    extractMetadata();
+
+    m_statusMessage = "GeoTiff metadata loaded successfully.";
+    emit statusMessageChanged();
+}
+
+GDALDataset *GeoTiffHandler::openGeoTiff(const QUrl &fileUrl)
 {
     closeDataset();
 
@@ -43,30 +88,15 @@ void GeoTiffHandler::loadGeoTIFF(const QUrl &fileUrl)
 
     // Open GeoTIFF file with GDAL public API
     CPLSetConfigOption("GDAL_PAM_ENABLED", "NO");
-    m_dataset = static_cast<GDALDataset*>(GDALOpen(filePath.toUtf8().constData(), GA_ReadOnly));
+    GDALDataset *dataset = static_cast<GDALDataset*>(GDALOpen(filePath.toUtf8().constData(), GA_ReadOnly));
 
-    if (!m_dataset) {
+    if (!dataset) {
         m_statusMessage = "Failed to open GeoTIFF file";
         emit statusMessageChanged();
-        return;
+        return nullptr;
     }
 
-    // Extract metadata
-    extractMetadata();
-
-    // Export to QImage for display
-    QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
-                       QDir::separator() + "geotiff_preview.png";
-
-    if (exportToQImage(tempPath)) {
-        m_imageSource = "file:///" + tempPath;
-        emit imageSourceChanged();
-        m_statusMessage = "GeoTIFF loaded successfully";
-    } else {
-        m_statusMessage = "Failed to generate preview image";
-    }
-
-    emit statusMessageChanged();
+    return dataset;
 }
 
 void GeoTiffHandler::closeDataset()
@@ -165,27 +195,25 @@ void GeoTiffHandler::extractMetadata()
     emit bandsModelChanged();
 }
 
-bool GeoTiffHandler::exportToQImage(const QString &outputPath)
+QImage GeoTiffHandler::exportToQImage(GDALDatasetH dataset)
 {
-    if (!m_dataset)
-        return false;
+    if (!dataset)
+        return QImage();
 
-    int width = GDALGetRasterXSize(m_dataset);
-    int height = GDALGetRasterYSize(m_dataset);
-    int bandCount = GDALGetRasterCount(m_dataset);
+    int width = GDALGetRasterXSize(dataset);
+    int height = GDALGetRasterYSize(dataset);
+    int bandCount = GDALGetRasterCount(dataset);
 
-    // Create a QImage with the same dimensions
-    QImage image(width, height, QImage::Format_RGB32);
-
+    QImage image;
     // For simplicity, we will assume 3 bands (RGB) or convert to RGB
     if (bandCount >= 3) {
-        GDALRasterBandH redBand = GDALGetRasterBand(m_dataset, 1);
-        GDALRasterBandH greenBand = GDALGetRasterBand(m_dataset, 2);
-        GDALRasterBandH blueBand = GDALGetRasterBand(m_dataset, 3);
+        GDALRasterBandH redBand = GDALGetRasterBand(dataset, 1);
+        GDALRasterBandH greenBand = GDALGetRasterBand(dataset, 2);
+        GDALRasterBandH blueBand = GDALGetRasterBand(dataset, 3);
 
         // Check if bands are valid
         if (!redBand || !greenBand || !blueBand) {
-            return false;
+            return QImage();
         }
 
         // Allocate mem for band data
@@ -195,14 +223,15 @@ bool GeoTiffHandler::exportToQImage(const QString &outputPath)
 
         CPLErr err = GDALRasterIO(redBand, GF_Read, 0, 0, width, height, redData.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
-            return false;
+            return QImage();
         err = GDALRasterIO(greenBand, GF_Read, 0, 0, width, height, greenData.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
-            return false;
+            return QImage();
         err = GDALRasterIO(blueBand, GF_Read, 0, 0, width, height, greenData.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
-            return false;
+            return QImage();
 
+        image = QImage(width, height, QImage::Format_RGB32);
         for (auto y = 0; y < height; y++) {
             for (auto x = 0; x < width; x++) {
                 int index = y * width + x;
@@ -211,9 +240,9 @@ bool GeoTiffHandler::exportToQImage(const QString &outputPath)
         }
     } else if (bandCount == 1) {
         // Single band - grayscale
-        GDALRasterBandH band = GDALGetRasterBand(m_dataset, 1);
+        GDALRasterBandH band = GDALGetRasterBand(dataset, 1);
         if (!band) {
-            return false;
+            return QImage();
         }
 
         // Allocate memory for band data
@@ -222,8 +251,9 @@ bool GeoTiffHandler::exportToQImage(const QString &outputPath)
         // Read band data
         CPLErr err = GDALRasterIO(band, GF_Read, 0, 0, width, height, data.data(), width, height, GDT_Byte, 0, 0);
         if (err > CPLErr::CE_Warning)
-            return false;
+            return QImage();
 
+        image = QImage(width, height, QImage::Format_RGB32);
         for (auto y = 0; y < height; y++) {
             for (auto x = 0; x < width; x++) {
                 int index = y * width + x;
@@ -233,8 +263,8 @@ bool GeoTiffHandler::exportToQImage(const QString &outputPath)
         }
     } else {
         // Unsupported band count
-        return false;
+        return QImage();
     }
 
-    return image.save(outputPath);
+    return image;
 }

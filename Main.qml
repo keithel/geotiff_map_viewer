@@ -60,65 +60,130 @@ ApplicationWindow {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
 
-            ScrollView {
-                id: scrollView
+            // Replace ScrollView with Flickable for better panning control
+            Flickable {
+                id: flickable
                 SplitView.preferredWidth: parent.width * 0.7
                 SplitView.minimumWidth: 300
-                ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                clip: true
 
-                Item {
-                    id: imageViewer
-                    width: Math.max(scrollView.width, image.width * image.scale)
-                    height: Math.max(scrollView.height, image.height * image.scale)
+                // Set the content size based on the scaled image
+                contentWidth: Math.max(image.width * imageViewer.currentScale, width)
+                contentHeight: Math.max(image.height * imageViewer.currentScale, height)
 
-                    property real minScale: 0.1
-                    property real maxScale: 10.0
+                // Enable flicking behavior for touch screens and smooth scrolling
+                // flickableDirection: Flickable.HorizontalAndVerticalFlick
+                // boundsMovement: Flickable.StopAtBounds
 
-                    function zoomIn() {
-                        var newScale = image.scale * 1.2;
-                        if (newScale <= maxScale) {
-                            image.scale = newScale;
+                // Center small images in the view
+                property real effectiveWidth: Math.max(contentWidth, width)
+                property real effectiveHeight: Math.max(contentHeight, height)
+
+                // Add ScrollBars to the Flickable
+                ScrollBar.horizontal: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    active: true
+                }
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    active: true
+                }
+
+                Image {
+                    id: image
+                    cache: false
+                    width: sourceSize.width
+                    height: sourceSize.height
+                    scale: imageViewer.currentScale
+                    transformOrigin: Item.TopLeft
+
+                    // Center image when smaller than the view
+                    x: Math.max(0, (flickable.width - width * scale) / 2)
+                    y: Math.max(0, (flickable.height - height * scale) / 2)
+
+                    // Update when image loads
+                    onStatusChanged: {
+                        if (status === Image.Ready) {
+                            imageViewer.resetZoom();
                         }
                     }
 
-                    function zoomOut() {
-                        var newScale = image.scale * 0.8;
-                        if (newScale >= minScale) {
-                            image.scale = newScale;
-                        }
-                    }
+                    // WheelHandler for zooming
+                    WheelHandler {
+                        id: wheelHandler
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
 
-                    function resetZoom() {
-                        image.scale = 1.0;
-                        image.x = 0;
-                        image.y = 0;
-                    }
+                        onWheel: (event) => {
+                            // Remember the position under the mouse in scene coordinates
+                            var positionInFlickableX = event.x + flickable.contentX
+                            var positionInFlickableY = event.y + flickable.contentY
 
-                    Image {
-                        id: image
-                        anchors.centerIn: parent
-                        source: geoTiffHandler.imageSource
-                        cache: false
-                        transformOrigin: Item.Center
-                        scale: 1.0
+                            // Calculate position relative to image (0-1)
+                            var relativeX = positionInFlickableX / (image.width * imageViewer.currentScale)
+                            var relativeY = positionInFlickableY / (image.height * imageViewer.currentScale)
+                            console.log("x " + event.x + " relativeX " + relativeX + " posInFlickable (" + positionInFlickableX + ", " + positionInFlickableY + "), scaledImageWidth " + (image.width * imageViewer.currentScale));
 
-                        DragHandler {}
-                        WheelHandler {
-                            onWheel: (event) => {
-                                if(event.angleDelta.y > 0) {
-                                    imageViewer.zoomIn();
-                                } else {
-                                    imageViewer.zoomOut();
-                                }
+                            // Apply zoom
+                            if (event.angleDelta.y > 0) {
+                                imageViewer.zoomIn()
+                            } else {
+                                imageViewer.zoomOut()
                             }
-                        }
-                        TapHandler {
-                            onDoubleTapped: (point, button) => {
-                                imageViewer.resetZoom();
-                            }
+
+                            // Calculate new content position to keep mouse over same point
+                            var newContentX = (image.width * imageViewer.currentScale) * relativeX - event.x
+                            var newContentY = (image.height * imageViewer.currentScale) * relativeY - event.y
+                            console.log("newContentX " + newContentX + " scaledImageWidth " + (image.width * imageViewer.currentScale));
+
+                            // // Update Flickable position
+                            // flickable.contentX = newContentX
+                            // flickable.contentY = newContentY
                         }
                     }
+
+                    // TapHandler for double-tap to reset zoom
+                    TapHandler {
+                        onDoubleTapped: {
+                            imageViewer.resetZoom()
+                        }
+                    }
+                }
+            }
+
+            // Image view control functions
+            QtObject {
+                id: imageViewer
+                property real currentScale: 1.0
+                property real minScale: 0.1
+                property real maxScale: 10.0
+
+                function zoomIn() {
+                    var newScale = currentScale * 1.2
+                    if (newScale <= maxScale) {
+                        currentScale = newScale
+                    }
+                }
+
+                function zoomOut() {
+                    var newScale = currentScale * 0.8
+                    if (newScale >= minScale) {
+                        currentScale = newScale
+                    }
+                }
+
+                function resetZoom() {
+                    // Calculate scale to fit
+                    if (image.sourceSize.width > 0 && image.sourceSize.height > 0) {
+                        var scaleX = flickable.width / image.sourceSize.width
+                        var scaleY = flickable.height / image.sourceSize.height
+                        currentScale = Math.min(1.0, Math.min(scaleX, scaleY))
+                    } else {
+                        currentScale = 1.0
+                    }
+
+                    // Reset position
+                    flickable.contentX = 0
+                    flickable.contentY = 0
                 }
             }
 
@@ -248,7 +313,8 @@ ApplicationWindow {
         nameFilters: ["GeoTIFF files (*.tif *.tiff)", "All files (*)"]
 
         onAccepted: {
-            geoTiffHandler.loadGeoTIFF(fileDialog.selectedFile)
+            image.source = "image://geotiff/" + fileDialog.selectedFile;
+            geoTiffHandler.loadMetadata(fileDialog.selectedFile)
         }
     }
 }

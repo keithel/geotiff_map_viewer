@@ -26,6 +26,7 @@ qt_add_qml_module(${PROJECT_BINARY_NAME}
         geotiffhandler.h
         geotiffhandler.cpp
         SOURCES geotiffhandler.h geotiffhandler.cpp
+        SOURCES geotiffimageprovider.h geotiffimageprovider.cpp
 )
 
 # Leave for image resources, etc.
