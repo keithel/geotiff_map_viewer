@@ -3,6 +3,8 @@ import QtCore
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtLocation
+import QtPositioning
 
 import geotiff_viewer
 
@@ -11,6 +13,25 @@ ApplicationWindow {
     height: 480
     visible: true
     title: qsTr("GeoTIFF Viewer")
+
+    function loadTiff(url) {
+        image.source = "image://geotiff/" + url;
+        console.log("set image.source to " + image.source)
+        GeoTiffHandler.loadMetadata(url)
+        tiffImgMQI.coordinate = QtPositioning.coordinate(GeoTiffHandler.boundsMaxY, GeoTiffHandler.boundsMinX)
+        tiffImgMQI.zoomLevel = 14
+    }
+
+    Component.onCompleted: loadTiff("file:///home/kyzik/Build/l3h-insight/austro-hungarian-maps/sheets_geo/2868_000_geo.tif")
+
+    Plugin {
+        id: mapPlugin
+        name: "osm"
+        PluginParameter {
+            name: "osm.mapping.providersrepository.address"
+            value: AppConfig.osmMappingProvidersRepositoryAddress
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -21,6 +42,31 @@ ApplicationWindow {
 
             RowLayout {
                 anchors.fill: parent
+
+                SpinBox {
+                    id: mapChoice
+                    from: 0
+                    to: 6
+                    value: 0
+                    wrap: true
+                    WheelHandler {
+                        onWheel: (wheel) => {
+                            if(wheel.angleDelta.y > 0)
+                                mapChoice.increase();
+                            else
+                                mapChoice.decrease();
+                        }
+                    }
+                }
+
+                SpinBox {
+                    id: imgOpacityChoice
+                    from: 0
+                    to: 100
+                    value: 75
+                    stepSize: 5
+                    WheelHandler { onWheel: (wheel) => { if(wheel.angleDelta.y > 0) imgOpacityChoice.increase(); else imgOpacityChoice.decrease() } }
+                }
 
                 Button {
                     text: "Open GeoTIFF"
@@ -56,139 +102,118 @@ ApplicationWindow {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
 
-            // Replace ScrollView with Flickable for better panning control
-            Flickable {
-                id: flickable
+            Item {
                 SplitView.preferredWidth: parent.width * 0.7
                 SplitView.minimumWidth: 300
-                clip: true
+                SplitView.fillHeight: true
 
-                // Set the content size based on the scaled image
-                contentWidth: Math.max(image.width * imageViewer.currentScale, width)
-                contentHeight: Math.max(image.height * imageViewer.currentScale, height)
+                Map {
+                    id: mapBase
+                    anchors.fill: parent
 
-                // Enable flicking behavior for touch screens and smooth scrolling
-                // flickableDirection: Flickable.HorizontalAndVerticalFlick
-                // boundsMovement: Flickable.StopAtBounds
+                    plugin: mapPlugin
+                    center: QtPositioning.coordinate(52.74,21.83) // Austro-Hungary
+                    zoomLevel: 14
+                    activeMapType: supportedMapTypes[mapChoice.value]
+                    property geoCoordinate startCentroid
+                    property geoCoordinate cursorCoordinate;
 
-                // Center small images in the view
-                property real effectiveWidth: Math.max(contentWidth, width)
-                property real effectiveHeight: Math.max(contentHeight, height)
-
-                // Add ScrollBars to the Flickable
-                ScrollBar.horizontal: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    active: true
-                }
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    active: true
-                }
-
-                Image {
-                    id: image
-                    cache: false
-                    width: sourceSize.width
-                    height: sourceSize.height
-                    scale: imageViewer.currentScale
-                    transformOrigin: Item.TopLeft
-
-                    // Center image when smaller than the view
-                    x: Math.max(0, (flickable.width - width * scale) / 2)
-                    y: Math.max(0, (flickable.height - height * scale) / 2)
-
-                    // Update when image loads
-                    onStatusChanged: {
-                        if (status === Image.Ready) {
-                            imageViewer.resetZoom();
+                    HoverHandler {
+                        onPointChanged: {
+                            mapBase.cursorCoordinate = mapBase.toCoordinate(point.position, false);
                         }
                     }
 
-                    // WheelHandler for zooming
+                    PinchHandler {
+                        id: pinch
+                        target: null
+                        onActiveChanged: if (active) {
+                            mapBase.startCentroid = mapBase.toCoordinate(pinch.centroid.position, false)
+                        }
+                        onScaleChanged: (delta) => {
+                            mapBase.zoomLevel += Math.log2(delta)
+                            mapBase.alignCoordinateToPoint(mapBase.startCentroid, pinch.centroid.position)
+                        }
+                        onRotationChanged: (delta) => {
+                            mapBase.bearing -= delta
+                            mapBase.alignCoordinateToPoint(mapBase.startCentroid, pinch.centroid.position)
+                        }
+                        grabPermissions: PointerHandler.TakeOverForbidden
+                    }
                     WheelHandler {
-                        id: wheelHandler
-                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-
-                        onWheel: (event) => {
-                            // Remember the position under the mouse in scene coordinates
-                            var positionInFlickableX = event.x + flickable.contentX
-                            var positionInFlickableY = event.y + flickable.contentY
-
-                            // Calculate position relative to image (0-1)
-                            var relativeX = positionInFlickableX / (image.width * imageViewer.currentScale)
-                            var relativeY = positionInFlickableY / (image.height * imageViewer.currentScale)
-                            console.log("x " + event.x + " relativeX " + relativeX + " posInFlickable (" + positionInFlickableX + ", " + positionInFlickableY + "), scaledImageWidth " + (image.width * imageViewer.currentScale));
-
-                            // Apply zoom
-                            if (event.angleDelta.y > 0) {
-                                imageViewer.zoomIn()
-                            } else {
-                                imageViewer.zoomOut()
-                            }
-
-                            // Calculate new content position to keep mouse over same point
-                            var newContentX = (image.width * imageViewer.currentScale) * relativeX - event.x
-                            var newContentY = (image.height * imageViewer.currentScale) * relativeY - event.y
-                            console.log("newContentX " + newContentX + " scaledImageWidth " + (image.width * imageViewer.currentScale));
-
-                            // // Update Flickable position
-                            // flickable.contentX = newContentX
-                            // flickable.contentY = newContentY
-                        }
+                        id: wheel
+                        // workaround for QTBUG-87646 / QTBUG-112394 / QTBUG-112432:
+                        // Magic Mouse pretends to be a trackpad but doesn't work with PinchHandler
+                        // and we don't yet distinguish mice and trackpads on Wayland either
+                        acceptedDevices: Qt.platform.pluginName === "cocoa" || Qt.platform.pluginName === "wayland"
+                                         ? PointerDevice.Mouse | PointerDevice.TouchPad
+                                         : PointerDevice.Mouse
+                        rotationScale: 1/120
+                        property: "zoomLevel"
                     }
+                    DragHandler {
+                        id: drag
+                        target: null
+                        onTranslationChanged: (delta) => mapBase.pan(-delta.x, -delta.y)
+                    }
+                    Shortcut {
+                        enabled: mapBase.zoomLevel < mapBase.maximumZoomLevel
+                        sequence: StandardKey.ZoomIn
+                        onActivated: mapBase.zoomLevel = mapBase.zoomLevel + 0.05 //Math.round(mapBase.zoomLevel + 1)
+                    }
+                    Shortcut {
+                        enabled: mapBase.zoomLevel > mapBase.minimumZoomLevel
+                        sequence: StandardKey.ZoomOut
+                        onActivated: mapBase.zoomLevel = mapBase.zoomLevel - 0.05 //Math.round(mapBase.zoomLevel - 1)
+                    }
+                }
+                Map {
+                    id: mapOverlay
+                    anchors.fill: mapBase
+                    plugin: Plugin { name: "itemsoverlay" }
+                    center: mapBase.center
+                    color: 'transparent' // Necessary to make this map transparent
+                    minimumFieldOfView: mapBase.minimumFieldOfView
+                    maximumFieldOfView: mapBase.maximumFieldOfView
+                    minimumTilt: mapBase.minimumTilt
+                    maximumTilt: mapBase.maximumTilt
+                    minimumZoomLevel: mapBase.minimumZoomLevel
+                    maximumZoomLevel: mapBase.maximumZoomLevel
+                    zoomLevel: mapBase.zoomLevel
+                    tilt: mapBase.tilt;
+                    bearing: mapBase.bearing
+                    fieldOfView: mapBase.fieldOfView
+                    z: mapBase.z + 1
 
-                    // TapHandler for double-tap to reset zoom
-                    TapHandler {
-                        onDoubleTapped: {
-                            imageViewer.resetZoom()
+                    MapQuickItem {
+                        id: tiffImgMQI
+                        sourceItem: Image {
+                            id: image
                         }
+                        coordinate: QtPositioning.coordinate(42.99486, -71.463457)
+                        anchorPoint: Qt.point(0,0)
+                        zoomLevel: 17
+                        opacity: (imgOpacityChoice.value*1.0)/100
                     }
                 }
             }
 
-            // Image view control functions
-            QtObject {
-                id: imageViewer
-                property real currentScale: 1.0
-                property real minScale: 0.1
-                property real maxScale: 10.0
-
-                function zoomIn() {
-                    var newScale = currentScale * 1.2
-                    if (newScale <= maxScale) {
-                        currentScale = newScale
-                    }
-                }
-
-                function zoomOut() {
-                    var newScale = currentScale * 0.8
-                    if (newScale >= minScale) {
-                        currentScale = newScale
-                    }
-                }
-
-                function resetZoom() {
-                    // Calculate scale to fit
-                    if (image.sourceSize.width > 0 && image.sourceSize.height > 0) {
-                        var scaleX = flickable.width / image.sourceSize.width
-                        var scaleY = flickable.height / image.sourceSize.height
-                        currentScale = Math.min(1.0, Math.min(scaleX, scaleY))
-                    } else {
-                        currentScale = 1.0
-                    }
-
-                    // Reset position
-                    flickable.contentX = 0
-                    flickable.contentY = 0
-                }
-            }
-
-            Pane {
+            Flickable {
+                id: flickable
                 SplitView.preferredWidth: parent.width * 0.3
                 SplitView.minimumWidth: 200
+                SplitView.fillHeight: true
+                contentWidth: width
+                contentHeight: columnLayout.height
+                clip: true
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AlwaysOn
+                }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    id: columnLayout
+                    width: parent.width
                     spacing: 10
 
                     GroupBox {
@@ -236,55 +261,59 @@ ApplicationWindow {
                             columns: 2
 
                             Label { text: "Min X:" }
-                            Label {
+                            TextField {
                                 text: GeoTiffHandler.boundsMinX || "Unknown"
                                 Layout.fillWidth: true
+                                readOnly: true
+                                background: Item {}
                             }
 
                             Label { text: "Min Y:" }
-                            Label {
+                            TextField {
                                 text: GeoTiffHandler.boundsMinY || "Unknown"
                                 Layout.fillWidth: true
+                                readOnly: true
+                                background: Item {}
                             }
 
                             Label { text: "Max X:" }
-                            Label {
+                            TextField {
                                 text: GeoTiffHandler.boundsMaxX || "Unknown"
                                 Layout.fillWidth: true
+                                readOnly: true
+                                background: Item {}
                             }
 
                             Label { text: "Max Y:" }
-                            Label {
+                            TextField {
                                 text: GeoTiffHandler.boundsMaxY || "Unknown"
                                 Layout.fillWidth: true
+                                readOnly: true
+                                background: Item {}
                             }
                         }
                     }
 
                     GroupBox {
                         Layout.fillWidth: true
+                        Layout.preferredHeight: bandsInfoLV.height + implicitLabelHeight + verticalPadding
                         title: "Bands Information"
 
-                        ScrollView {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
+                        ListView {
+                            id: bandsInfoLV
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: contentHeight
 
-                            ListView {
-                                model: GeoTiffHandler.bandsModel
-                                delegate: ItemDelegate {
-                                    width: parent.width
-                                    contentItem: Label {
-                                        text: modelData
-                                        wrapMode: Text.WordWrap
-                                    }
+                            model: GeoTiffHandler.bandsModel
+                            delegate: ItemDelegate {
+                                width: parent.width
+                                contentItem: Label {
+                                    text: modelData
+                                    wrapMode: Text.WordWrap
                                 }
                             }
                         }
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
                     }
                 }
             }
@@ -309,8 +338,7 @@ ApplicationWindow {
         nameFilters: ["GeoTIFF files (*.tif *.tiff)", "All files (*)"]
 
         onAccepted: {
-            image.source = "image://geotiff/" + fileDialog.selectedFile;
-            GeoTiffHandler.loadMetadata(fileDialog.selectedFile)
+            loadTiff(fileDialog.selectedFile);
         }
     }
 }
