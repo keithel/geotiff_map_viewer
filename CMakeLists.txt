@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # home will be found. In my case, that is where I installed GDAL to.
 set(CMAKE_PREFIX_PATH "$ENV{HOME}" ${CMAKE_PREFIX_PATH})
 
-find_package(Qt6 REQUIRED COMPONENTS Quick HttpServer)
+find_package(Qt6 REQUIRED COMPONENTS Quick Positioning Location HttpServer)
 find_package(GDAL REQUIRED)
 include_directories(${GDAL_INCLUDE_DIRS})
 
@@ -21,9 +21,7 @@ qt_add_executable(${PROJECT_BINARY_NAME}
     src/main.cpp
 )
 
-set_source_files_properties(qml/Main.qml PROPERTIES
-    QT_RESOURCE_ALIAS Main.qml
-)
+set_source_files_properties(qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 
 qt_add_qml_module(${PROJECT_BINARY_NAME}
     URI geotiff_viewer
@@ -65,7 +63,7 @@ set_target_properties(${PROJECT_BINARY_NAME} PROPERTIES
 )
 
 target_link_libraries(${PROJECT_BINARY_NAME}
-    PRIVATE Qt6::Quick Qt::HttpServer
+    PRIVATE Qt6::Quick Qt::Positioning Qt::Location Qt::HttpServer
     PRIVATE ${GDAL_LIBRARIES}
 )
 
