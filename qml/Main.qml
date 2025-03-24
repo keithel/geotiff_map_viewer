@@ -15,11 +15,14 @@ ApplicationWindow {
     title: qsTr("GeoTIFF Viewer")
 
     function loadTiff(url) {
-        image.source = "image://geotiff/" + url;
-        console.log("set image.source to " + image.source)
+        // image.source = "image://geotiff/" + url;
+        console.log("image source " + url)
         GeoTiffHandler.loadMetadata(url)
-        tiffImgMQI.coordinate = QtPositioning.coordinate(GeoTiffHandler.boundsMaxY, GeoTiffHandler.boundsMinX)
-        imgZoomLevelChoice.value = 140;
+
+        // tiffImgMQI.coordinate = QtPositioning.coordinate(GeoTiffHandler.boundsMaxY, GeoTiffHandler.boundsMinX)
+        // imgZoomLevelChoice.value = 140;
+        var jsurl = new URL(url)
+        geotiffoverlay.geoTiffPath = jsurl.pathname
     }
 
     Component.onCompleted: loadTiff("file:///home/kyzik/Build/l3h-insight/austro-hungarian-maps/sheets_geo/2868_000_geo.tif")
@@ -148,12 +151,7 @@ ApplicationWindow {
                     }
                     WheelHandler {
                         id: wheel
-                        // workaround for QTBUG-87646 / QTBUG-112394 / QTBUG-112432:
-                        // Magic Mouse pretends to be a trackpad but doesn't work with PinchHandler
-                        // and we don't yet distinguish mice and trackpads on Wayland either
-                        acceptedDevices: Qt.platform.pluginName === "cocoa" || Qt.platform.pluginName === "wayland"
-                                         ? PointerDevice.Mouse | PointerDevice.TouchPad
-                                         : PointerDevice.Mouse
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                         rotationScale: 1/120
                         property: "zoomLevel"
                     }
@@ -191,15 +189,20 @@ ApplicationWindow {
                     fieldOfView: mapBase.fieldOfView
                     z: mapBase.z + 1
 
-                    MapQuickItem {
-                        id: tiffImgMQI
-                        sourceItem: Image {
-                            id: image
-                        }
-                        coordinate: QtPositioning.coordinate(0, 0)
-                        anchorPoint: Qt.point(0,0)//image.width,image.height)
-                        zoomLevel: imgZoomLevelChoice.value/10
-                        opacity: (imgOpacityChoice.value*1.0)/100
+                    // MapQuickItem {
+                    //     id: tiffImgMQI
+                    //     sourceItem: Image {
+                    //         id: image
+                    //     }
+                    //     coordinate: QtPositioning.coordinate(0, 0)
+                    //     anchorPoint: Qt.point(0,0)//image.width,image.height)
+                    //     zoomLevel: imgZoomLevelChoice.value/10
+                    //     opacity: (imgOpacityChoice.value*1.0)/100
+                    // }
+
+                    GeoTiffOverlay {
+                        id: geotiffoverlay
+                        map: parent
                     }
                 }
             }
