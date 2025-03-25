@@ -65,7 +65,7 @@ set_target_properties(${PROJECT_BINARY_NAME} PROPERTIES
 )
 
 target_link_libraries(${PROJECT_BINARY_NAME}
-    PRIVATE Qt6::Quick Qt::Positioning Qt::Location Qt::HttpServer
+    PRIVATE Qt6::Quick Qt::Positioning Qt::Location Qt::HttpServer Qt::LocationPrivate
     PRIVATE ${GDAL_LIBRARIES}
 )
 

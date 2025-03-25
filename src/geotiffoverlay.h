@@ -7,43 +7,37 @@
 #include <QGeoCoordinate>
 #include <gdal_priv.h>
 
+class QDeclarativeGeoMap;
 
 class GeoTiffOverlay : public QQuickItem
 {
     Q_OBJECT
     QML_ELEMENT
-    Q_PROPERTY(QString geoTiffPath READ geoTiffPath WRITE setGeoTiffPath NOTIFY geoTiffPathChanged)
-    Q_PROPERTY(QObject* map READ map WRITE setMap NOTIFY mapChanged)
+    Q_PROPERTY(QString source READ source WRITE setSource NOTIFY sourceChanged)
 
 public:
     GeoTiffOverlay(QQuickItem *parent = nullptr);
-
     ~GeoTiffOverlay();
 
-    inline QString geoTiffPath() const { return m_geoTiffPath; }
-    inline QObject* map() const { return m_map; }
-
-    void setGeoTiffPath(const QString &path);
-
-    void setMap(QObject *map);
+    inline QString source() const { return m_source; }
+    void setSource(const QString &source);
 
 signals:
-    void geoTiffPathChanged();
-    void mapChanged();
+    void sourceChanged();
 
 protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data) override;
 
 private slots:
-    void loadGeoTiff();
+    void loadSource();
 
     void updateTransform();
 
     QPointF geoToPixel(const QGeoCoordinate &coord);
 
 private:
-    QString m_geoTiffPath;
-    QObject* m_map;
+    QDeclarativeGeoMap *m_map = nullptr;
+    QString m_source;
     GDALDataset* m_dataset = nullptr;
     QList<double> m_geoTransform;
     OGRCoordinateTransformation* m_coordTransform = nullptr;

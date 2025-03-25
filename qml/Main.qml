@@ -22,7 +22,7 @@ ApplicationWindow {
         // tiffImgMQI.coordinate = QtPositioning.coordinate(GeoTiffHandler.boundsMaxY, GeoTiffHandler.boundsMinX)
         // imgZoomLevelChoice.value = 140;
         var jsurl = new URL(url)
-        geotiffoverlay.geoTiffPath = jsurl.pathname
+        geotiffoverlay.source = jsurl.pathname
     }
 
     Component.onCompleted: loadTiff("file:///home/kyzik/Build/l3h-insight/austro-hungarian-maps/sheets_geo/2868_000_geo.tif")
@@ -202,7 +202,9 @@ ApplicationWindow {
 
                     GeoTiffOverlay {
                         id: geotiffoverlay
-                        map: parent
+                        anchors.fill: parent
+                        anchors.margins: 0
+                        opacity: (imgOpacityChoice.value*1.0)/100
                     }
                 }
             }

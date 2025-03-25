@@ -3,14 +3,16 @@
 #include <QSGTransformNode>
 #include <QSGSimpleTextureNode>
 #include <QGeoRectangle>
+#include <QGeoPolygon>
 
-GeoTiffOverlay::GeoTiffOverlay(QQuickItem *parent) : QQuickItem(parent), m_map(nullptr)
+#include <QImageWriter>
+
+#include <6.9.0/QtLocation/private/qdeclarativegeomap_p.h>
+
+GeoTiffOverlay::GeoTiffOverlay(QQuickItem *parent) : QQuickItem(parent)
 {
     // Register GDAL drivers
     GDALAllRegister();
-
-    // Enable item to receive paint events
-    setFlag(QQuickItem::ItemHasContents, true);
 }
 
 GeoTiffOverlay::~GeoTiffOverlay()
@@ -20,27 +22,27 @@ GeoTiffOverlay::~GeoTiffOverlay()
     }
 }
 
-void GeoTiffOverlay::setGeoTiffPath(const QString &path)
+void GeoTiffOverlay::setSource(const QString &source)
 {
-    if (m_geoTiffPath != path) {
-        m_geoTiffPath = path;
-        loadGeoTiff();
-        emit geoTiffPathChanged();
-        update();
-    }
-}
 
-void GeoTiffOverlay::setMap(QObject *map)
-{
-    if (m_map != map) {
-        m_map = map;
-        // Connect to map's center and zoom level changes
-        if (m_map) {
-            connect(m_map, SIGNAL(centerChanged(QGeoCoordinate)), this, SLOT(updateTransform()));
-            connect(m_map, SIGNAL(zoomLevelChanged()), this, SLOT(updateTransform()));
-            updateTransform();
-        }
-        emit mapChanged();
+    QQuickItem *p = parentItem();
+    m_map = qobject_cast<QDeclarativeGeoMap *>(p);
+    if (m_map == nullptr)
+        qWarning() << "Parent of GeoTiffOverlay must be a Qt Location `Map` item.";
+    else {
+        // Enable item to receive paint events if there is a map parent.
+        setFlag(QQuickItem::ItemHasContents, true);
+
+        connect(m_map, &QDeclarativeGeoMap::centerChanged, this, &GeoTiffOverlay::updateTransform);
+        connect(m_map, &QDeclarativeGeoMap::zoomLevelChanged, this, &GeoTiffOverlay::updateTransform);
+        // connect(m_map, &QQuickItem::)
+    }
+
+    if (m_map && m_source != source) {
+        m_source = source;
+        loadSource();
+        emit sourceChanged();
+        update();
     }
 }
 
@@ -113,7 +115,7 @@ QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
     return rootNode;
 }
 
-void GeoTiffOverlay::loadGeoTiff()
+void GeoTiffOverlay::loadSource()
 {
     // Close previous dataset if any
     if (m_dataset) {
@@ -122,9 +124,9 @@ void GeoTiffOverlay::loadGeoTiff()
     }
 
     // Open GeoTIFF file
-    m_dataset = static_cast<GDALDataset*>(GDALOpen(m_geoTiffPath.toUtf8().constData(), GA_ReadOnly));
+    m_dataset = static_cast<GDALDataset*>(GDALOpen(m_source.toUtf8().constData(), GA_ReadOnly));
     if (!m_dataset) {
-        qWarning() << "Failed to open GeoTIFF file:" << m_geoTiffPath;
+        qWarning() << "Failed to open GeoTIFF file:" << m_source;
         return;
     }
 
@@ -165,8 +167,54 @@ void GeoTiffOverlay::loadGeoTiff()
     updateTransform();
 }
 
+QString geoRectToDMSString(const QGeoRectangle &gRect) {
+    QList<QGeoCoordinate> coords = {
+        gRect.bottomRight(),
+        gRect.bottomLeft(),
+        gRect.topLeft(),
+        gRect.topRight()
+    };
+
+    QString str("QGeoRectangle([ ");
+    for(auto &coord : coords) {
+        str.append(coord.toString());
+        double alt = coord.altitude();
+        alt = (alt == alt) ? alt : 0; // Set to zero if NaN
+        str.append(QString(", %1m").arg(alt, 0, 'f', 0));
+        str.append(",");
+    }
+    str.append(" ])");
+    return str;
+}
+
+void reportCplErrWarning(CPLErr errType, const QString& msg)
+{
+    QString errTypeStr;
+    switch(errType) {
+    case CPLErr::CE_Debug:
+        errTypeStr = "debug";
+        break;
+    case CPLErr::CE_Failure:
+        errTypeStr = "failure";
+        break;
+    case CPLErr::CE_Fatal:
+        errTypeStr = "fatal";
+        break;
+    case CPLErr::CE_Warning:
+        errTypeStr = "warning";
+        break;
+    case CPLErr::CE_None:
+        errTypeStr = "none";
+        break;
+    default:
+        errTypeStr = "unknown";
+    }
+    qWarning() << msg << errTypeStr << ": " << CPLGetLastErrorMsg();
+}
+
 void GeoTiffOverlay::updateTransform()
 {
+    qDebug() << "updateTransform";
     if (!m_map || !m_dataset || m_geoTransform.isEmpty())
         return;
 
@@ -174,10 +222,28 @@ void GeoTiffOverlay::updateTransform()
     QVariant visibleRegion = m_map->property("visibleRegion");
     Q_ASSERT(visibleRegion.userType() == QGeoShape::staticMetaObject.metaType().id());
     QGeoShape shape = visibleRegion.value<QGeoShape>();
-    Q_ASSERT(shape.type() == QGeoShape::RectangleType);
-    QGeoRectangle *rectangle = static_cast<QGeoRectangle*>(&shape);
-    QGeoCoordinate topLeft = rectangle->topLeft();
-    QGeoCoordinate bottomRight = rectangle->bottomRight();
+    // qDebug() << "QGeoShape:" << shape;
+    QGeoShape::ShapeType shapeType = shape.type();
+
+    Q_ASSERT(shapeType == QGeoShape::RectangleType || shapeType == QGeoShape::PolygonType);
+    QGeoCoordinate topLeft;
+    QGeoCoordinate bottomRight;
+    if (shapeType == QGeoShape::RectangleType) {
+        QGeoRectangle *rectangle = static_cast<QGeoRectangle*>(&shape);
+        // qDebug() << "Rectangle" << geoRectToDMSString(*rectangle);
+        topLeft = rectangle->topLeft();
+        bottomRight = rectangle->bottomRight();
+    }
+    else {
+        QGeoPolygon *poly = static_cast<QGeoPolygon*>(&shape);
+        // qDebug() << "Polygon  " << poly->toString();
+        const QList<QGeoCoordinate> &perimeter = poly->perimeter();
+        Q_ASSERT(perimeter.length() == 4);
+        QGeoRectangle boundingGRect = poly->boundingGeoRectangle();
+        // qDebug() << "RBounds" << geoRectToDMSString(boundingGRect);
+        topLeft = boundingGRect.topLeft();
+        bottomRight = boundingGRect.bottomRight();
+    }
 
     // Calculate the bounds of our GeoTIFF in lat/lon coordinates
     double minX = m_geoTransform[0];
@@ -208,16 +274,16 @@ void GeoTiffOverlay::updateTransform()
     }
 
     // Calculate the pixel coordinates in the map view
-    QVariant centerVar = m_map->property("center");
-    QGeoCoordinate center = centerVar.value<QGeoCoordinate>();
-    double zoomLevel = m_map->property("zoomLevel").toDouble();
+    // QVariant centerVar = m_map->property("center");
+    // QGeoCoordinate center = centerVar.value<QGeoCoordinate>();
+    // double zoomLevel = m_map->property("zoomLevel").toDouble();
 
-    // Calculate scaling factor based on zoom level
-    double scale = pow(2, zoomLevel);
+    // // Calculate scaling factor based on zoom level
+    // double scale = pow(2, zoomLevel);
 
     // Get map width and height
-    double mapWidth = width();
-    double mapHeight = height();
+    double mapWidth = m_map->width();
+    double mapHeight = m_map->height();
 
     // Calculate the pixel coordinates of the GeoTIFF corners
     QPointF topLeftPx = geoToPixel(QGeoCoordinate(maxY, minX));
@@ -243,10 +309,13 @@ void GeoTiffOverlay::updateTransform()
     // This is simplified - you might want to handle different band types properly
     GDALRasterBand* redBand = m_dataset->GetRasterBand(1);
 
+    CPLErr err;
     if (bandCount == 1) {
         // Grayscale image
         std::vector<uint8_t> buffer(width * height);
-        redBand->RasterIO(GF_Read, 0, 0, width, height, buffer.data(), width, height, GDT_Byte, 0, 0);
+        err = redBand->RasterIO(GF_Read, 0, 0, width, height, buffer.data(), width, height, GDT_Byte, 0, 0);
+        if (err)
+            reportCplErrWarning(err, "GDALRasterBand::RasterIO call on redBand failed with ");
 
         for (int y = 0; y < height; ++y) {
             memcpy(image.scanLine(y), buffer.data() + y * width, width);
@@ -261,20 +330,28 @@ void GeoTiffOverlay::updateTransform()
         std::vector<uint8_t> redBuffer(width * height);
         std::vector<uint8_t> greenBuffer(width * height);
         std::vector<uint8_t> blueBuffer(width * height);
-        std::vector<uint8_t> alphaBuffer(width * height);
+        // If no alpha channel, fill with 255 (completely opaque)
+        std::vector<uint8_t> alphaBuffer = bandCount > 3 ? std::vector<uint8_t>(width*height) : std::vector<uint8_t>(width*height, 255);
 
-        redBand->RasterIO(GF_Read, 0, 0, width, height, redBuffer.data(), width, height, GDT_Byte, 0, 0);
-        greenBand->RasterIO(GF_Read, 0, 0, width, height, greenBuffer.data(), width, height, GDT_Byte, 0, 0);
-        blueBand->RasterIO(GF_Read, 0, 0, width, height, blueBuffer.data(), width, height, GDT_Byte, 0, 0);
+        err = redBand->RasterIO(GF_Read, 0, 0, width, height, redBuffer.data(), width, height, GDT_Byte, 0, 0);
+        if (err)
+            reportCplErrWarning(err, "GDALRasterBand::RasterIO call on redBand failed with ");
+
+        err = greenBand->RasterIO(GF_Read, 0, 0, width, height, greenBuffer.data(), width, height, GDT_Byte, 0, 0);
+        if (err)
+            reportCplErrWarning(err, "GDALRasterBand::RasterIO call on greenBand failed with ");
+
+        err = blueBand->RasterIO(GF_Read, 0, 0, width, height, blueBuffer.data(), width, height, GDT_Byte, 0, 0);
+        if (err)
+            reportCplErrWarning(err, "GDALRasterBand::RasterIO call on blueBand failed with ");
 
         if (alphaBand) {
-            alphaBand->RasterIO(GF_Read, 0, 0, width, height, alphaBuffer.data(), width, height, GDT_Byte, 0, 0);
-        }
-        else {
-            // No alpha channel, fill with 255 (fully opaque)
-            std::fill(alphaBuffer.begin(), alphaBuffer.end(), 255);
+            err = alphaBand->RasterIO(GF_Read, 0, 0, width, height, alphaBuffer.data(), width, height, GDT_Byte, 0, 0);
+            if (err)
+                reportCplErrWarning(err, "GDALRasterBand::RasterIO call on alphaBand failed with ");
         }
 
+        // int usedBandCount = usedBandCount > 4 ? 4 : usedBandCount;
         for (int y = 0; y < height; ++y) {
             uint8_t* scanline = image.scanLine(y);
             for (int x = 0; x < width; ++x) {
@@ -316,6 +393,10 @@ void GeoTiffOverlay::updateTransform()
     painter.end();
 
     m_transformedImage = transformedImage;
+    // QImageWriter w("/tmp/img.png");
+    // // w.write(image);
+    // w.setFileName("/tmp/img_xform.png");
+    // w.write(m_transformedImage);
     update(); // Request a redraw
 }
 
@@ -325,9 +406,5 @@ QPointF GeoTiffOverlay::geoToPixel(const QGeoCoordinate &coord)
         return QPointF(0, 0);
 
     // Use Qt Location's mapping from geo coordinates to screen coordinates
-    QVariant point;
-    QMetaObject::invokeMethod(m_map, "fromCoordinate",
-                                               Q_RETURN_ARG(QVariant, point),
-                                               Q_ARG(QVariant, QVariant::fromValue(coord)));
-    return point.toPointF();
+    return m_map->fromCoordinate(coord, false);
 }

@@ -7,6 +7,8 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+
+    qputenv("QT_QUICK_BACKEND", "software");
     QQmlApplicationEngine engine;
 
     AppConfig *appConfig = AppConfig::instance();
