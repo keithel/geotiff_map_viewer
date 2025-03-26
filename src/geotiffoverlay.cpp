@@ -56,11 +56,6 @@ QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
         rootNode = new QSGTransformNode();
     }
 
-    // Get the current transform - in this case, we just use identity since
-    // our image is already transformed to match the map in updateTransform()
-    QMatrix4x4 identityMatrix;
-    rootNode->setMatrix(identityMatrix);
-
     // Find the texture node if it exists, otherwise create a new one
     QSGSimpleTextureNode* textureNode = nullptr;
     if (rootNode->childCount() > 0) {
@@ -226,6 +221,8 @@ void GeoTiffOverlay::updateTransform()
         QGeoPolygon *poly = static_cast<QGeoPolygon*>(&shape);
         // qDebug() << "Polygon  " << poly->toString();
         const QList<QGeoCoordinate> &perimeter = poly->perimeter();
+        // if (perimeter.length() == 0)
+        //     return;
         Q_ASSERT(perimeter.length() == 4);
         QGeoRectangle boundingGRect = poly->boundingGeoRectangle();
         // qDebug() << "RBounds" << geoRectToDMSString(boundingGRect);
@@ -248,7 +245,8 @@ void GeoTiffOverlay::updateTransform()
             minX, maxY
         };
 
-        // Transform all corners
+        // Transform all corners. For the austro-hungarian empire geotiffs, this results in no change,
+        // after the call. I believe this is because both the source and destination SRS are the same.
         if (!m_coordTransform->Transform(4, points, points + 1, nullptr, nullptr)) {
             qWarning() << "Coordinate transformation failed";
             return;
@@ -261,37 +259,32 @@ void GeoTiffOverlay::updateTransform()
         maxY = std::max({points[1], points[3], points[5], points[7]});
     }
 
-    // Calculate the pixel coordinates in the map view
-    // QVariant centerVar = m_map->property("center");
-    // QGeoCoordinate center = centerVar.value<QGeoCoordinate>();
-    // double zoomLevel = m_map->property("zoomLevel").toDouble();
-
-    // // Calculate scaling factor based on zoom level
-    // double scale = pow(2, zoomLevel);
-
-    // Get map width and height
-    double mapWidth = m_map->width();
-    double mapHeight = m_map->height();
-
     // Calculate the pixel coordinates of the GeoTIFF corners
-    QPointF topLeftPx = geoToPixel(QGeoCoordinate(maxY, minX));
-    QPointF bottomRightPx = geoToPixel(QGeoCoordinate(minY, maxX));
+    QPointF topLeftGTPx = geoToPixel(QGeoCoordinate(maxY, minX));
+    QPointF bottomRightGTPx = geoToPixel(QGeoCoordinate(minY, maxX));
 
-    // Create transformation matrix
-    QTransform transform;
+    QRectF targetRect(topLeftGTPx, bottomRightGTPx);
+    setImplicitSize(targetRect.width(), targetRect.height());
+    setPosition(targetRect.topLeft());
+
+    if((targetRect.top() + targetRect.height() <= 0) || (targetRect.left() + targetRect.width() <= 0) ||
+        (targetRect.top() > targetRect.height()) || (targetRect.left() > targetRect.width())) {
+        // Image is offscreen. No need to continue.
+        return;
+    }
 
     // Handle rotation if needed - depends on the GeoTIFF and its alignment with the map
-    // This example assumes north-up GeoTIFF with no rotation needed
+    // This example assumes north-up GeoTIFF with no rotation needed - QTransform for that I think?
 
     // Create a QImage from the GeoTIFF
-    int width = m_dataset->GetRasterXSize();
-    int height = m_dataset->GetRasterYSize();
+    int widthGTPx = m_dataset->GetRasterXSize();
+    int heightGTPx = m_dataset->GetRasterYSize();
 
     // Read all raster bands
     int bandCount = m_dataset->GetRasterCount();
 
-    QImage image(width, height, bandCount >= 4 ? QImage::Format_RGBA8888 :
-                                    (bandCount == 3 ? QImage::Format_RGB888 : QImage::Format_Grayscale8));
+    QImage image(widthGTPx, heightGTPx, bandCount >= 4 ? QImage::Format_RGBA8888 :
+                 (bandCount == 3 ? QImage::Format_RGB888 : QImage::Format_Grayscale8));
 
     // Read bands
     // This is simplified - you might want to handle different band types properly
@@ -300,13 +293,13 @@ void GeoTiffOverlay::updateTransform()
     CPLErr err;
     if (bandCount == 1) {
         // Grayscale image
-        std::vector<uint8_t> buffer(width * height);
-        err = redBand->RasterIO(GF_Read, 0, 0, width, height, buffer.data(), width, height, GDT_Byte, 0, 0);
+        std::vector<uint8_t> buffer(widthGTPx * heightGTPx);
+        err = redBand->RasterIO(GF_Read, 0, 0, widthGTPx, heightGTPx, buffer.data(), widthGTPx, heightGTPx, GDT_Byte, 0, 0);
         if (err)
             reportCplErrWarning(err, "GDALRasterBand::RasterIO call on redBand failed with ");
 
-        for (int y = 0; y < height; ++y) {
-            memcpy(image.scanLine(y), buffer.data() + y * width, width);
+        for (int y = 0; y < heightGTPx; ++y) {
+            memcpy(image.scanLine(y), buffer.data() + y * widthGTPx, widthGTPx);
         }
     }
     else if (bandCount >= 3) {
@@ -315,35 +308,35 @@ void GeoTiffOverlay::updateTransform()
         GDALRasterBand* blueBand = m_dataset->GetRasterBand(3);
         GDALRasterBand* alphaBand = bandCount >= 4 ? m_dataset->GetRasterBand(4) : nullptr;
 
-        std::vector<uint8_t> redBuffer(width * height);
-        std::vector<uint8_t> greenBuffer(width * height);
-        std::vector<uint8_t> blueBuffer(width * height);
+        std::vector<uint8_t> redBuffer(widthGTPx * heightGTPx);
+        std::vector<uint8_t> greenBuffer(widthGTPx * heightGTPx);
+        std::vector<uint8_t> blueBuffer(widthGTPx * heightGTPx);
         // If no alpha channel, fill with 255 (completely opaque)
-        std::vector<uint8_t> alphaBuffer = bandCount > 3 ? std::vector<uint8_t>(width*height) : std::vector<uint8_t>(width*height, 255);
+        std::vector<uint8_t> alphaBuffer = bandCount > 3 ? std::vector<uint8_t>(widthGTPx*heightGTPx) : std::vector<uint8_t>(widthGTPx*heightGTPx, 255);
 
-        err = redBand->RasterIO(GF_Read, 0, 0, width, height, redBuffer.data(), width, height, GDT_Byte, 0, 0);
+        err = redBand->RasterIO(GF_Read, 0, 0, widthGTPx, heightGTPx, redBuffer.data(), widthGTPx, heightGTPx, GDT_Byte, 0, 0);
         if (err)
             reportCplErrWarning(err, "GDALRasterBand::RasterIO call on redBand failed with ");
 
-        err = greenBand->RasterIO(GF_Read, 0, 0, width, height, greenBuffer.data(), width, height, GDT_Byte, 0, 0);
+        err = greenBand->RasterIO(GF_Read, 0, 0, widthGTPx, heightGTPx, greenBuffer.data(), widthGTPx, heightGTPx, GDT_Byte, 0, 0);
         if (err)
             reportCplErrWarning(err, "GDALRasterBand::RasterIO call on greenBand failed with ");
 
-        err = blueBand->RasterIO(GF_Read, 0, 0, width, height, blueBuffer.data(), width, height, GDT_Byte, 0, 0);
+        err = blueBand->RasterIO(GF_Read, 0, 0, widthGTPx, heightGTPx, blueBuffer.data(), widthGTPx, heightGTPx, GDT_Byte, 0, 0);
         if (err)
             reportCplErrWarning(err, "GDALRasterBand::RasterIO call on blueBand failed with ");
 
         if (alphaBand) {
-            err = alphaBand->RasterIO(GF_Read, 0, 0, width, height, alphaBuffer.data(), width, height, GDT_Byte, 0, 0);
+            err = alphaBand->RasterIO(GF_Read, 0, 0, widthGTPx, heightGTPx, alphaBuffer.data(), widthGTPx, heightGTPx, GDT_Byte, 0, 0);
             if (err)
                 reportCplErrWarning(err, "GDALRasterBand::RasterIO call on alphaBand failed with ");
         }
 
         // int usedBandCount = usedBandCount > 4 ? 4 : usedBandCount;
-        for (int y = 0; y < height; ++y) {
+        for (int y = 0; y < heightGTPx; ++y) {
             uint8_t* scanline = image.scanLine(y);
-            for (int x = 0; x < width; ++x) {
-                int idx = y * width + x;
+            for (int x = 0; x < widthGTPx; ++x) {
+                int idx = y * widthGTPx + x;
                 if (bandCount >= 4) {
                     scanline[x*4] = redBuffer[idx];
                     scanline[x*4+1] = greenBuffer[idx];
@@ -360,18 +353,16 @@ void GeoTiffOverlay::updateTransform()
     }
 
     // Now transform the image to match the map
-    QRectF sourceRect(0, 0, width, height);
-    QRectF targetRect(topLeftPx, bottomRightPx);
+    QRectF sourceRect(0, 0, widthGTPx, heightGTPx);
 
     // Create a new image with the correct size for our map view
-    QImage transformedImage(mapWidth, mapHeight, QImage::Format_RGBA8888);
+    QImage transformedImage(targetRect.size().toSize(), QImage::Format_RGBA8888);
     transformedImage.fill(Qt::transparent);
 
     QPainter painter(&transformedImage);
 
     // Calculate the mapping from source to target
     QTransform mapTransform;
-    mapTransform = QTransform::fromTranslate(targetRect.left(), targetRect.top());
     mapTransform.scale(targetRect.width() / sourceRect.width(),
                        targetRect.height() / sourceRect.height());
 

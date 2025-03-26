@@ -189,21 +189,8 @@ ApplicationWindow {
                     fieldOfView: mapBase.fieldOfView
                     z: mapBase.z + 1
 
-                    // MapQuickItem {
-                    //     id: tiffImgMQI
-                    //     sourceItem: Image {
-                    //         id: image
-                    //     }
-                    //     coordinate: QtPositioning.coordinate(0, 0)
-                    //     anchorPoint: Qt.point(0,0)//image.width,image.height)
-                    //     zoomLevel: imgZoomLevelChoice.value/10
-                    //     opacity: (imgOpacityChoice.value*1.0)/100
-                    // }
-
                     GeoTiffOverlay {
                         id: geotiffoverlay
-                        anchors.fill: parent
-                        anchors.margins: 0
                         opacity: (imgOpacityChoice.value*1.0)/100
                     }
                 }
