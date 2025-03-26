@@ -24,7 +24,6 @@ GeoTiffOverlay::~GeoTiffOverlay()
 
 void GeoTiffOverlay::setSource(const QString &source)
 {
-
     QQuickItem *p = parentItem();
     m_map = qobject_cast<QDeclarativeGeoMap *>(p);
     if (m_map == nullptr)
@@ -34,10 +33,15 @@ void GeoTiffOverlay::setSource(const QString &source)
         setFlag(QQuickItem::ItemHasContents, true);
 
         connect(m_map, &QDeclarativeGeoMap::visibleRegionChanged, this, &GeoTiffOverlay::updateTransform);
+        connect(m_map, &QDeclarativeGeoMap::zoomLevelChanged, this, [this](){
+            m_dirty = true;
+            updateTransform();
+        });
     }
 
     if (m_map && m_source != source) {
         m_source = source;
+        m_dirty = true;
         loadSource();
         emit sourceChanged();
         update();
@@ -192,7 +196,6 @@ void reportCplErrWarning(CPLErr errType, const QString& msg)
 
 void GeoTiffOverlay::updateTransform()
 {
-    qDebug() << "updateTransform";
     if (!m_map || !m_dataset || m_geoTransform.isEmpty())
         return;
 
@@ -276,6 +279,13 @@ void GeoTiffOverlay::updateTransform()
     // Handle rotation if needed - depends on the GeoTIFF and its alignment with the map
     // This example assumes north-up GeoTIFF with no rotation needed - QTransform for that I think?
 
+    if(m_dirty)
+        transformImage();
+}
+
+void GeoTiffOverlay::transformImage()
+{
+    qDebug() << "Transform image";
     // Create a QImage from the GeoTIFF
     int widthGTPx = m_dataset->GetRasterXSize();
     int heightGTPx = m_dataset->GetRasterYSize();
@@ -284,7 +294,7 @@ void GeoTiffOverlay::updateTransform()
     int bandCount = m_dataset->GetRasterCount();
 
     QImage image(widthGTPx, heightGTPx, bandCount >= 4 ? QImage::Format_RGBA8888 :
-                 (bandCount == 3 ? QImage::Format_RGB888 : QImage::Format_Grayscale8));
+                                            (bandCount == 3 ? QImage::Format_RGB888 : QImage::Format_Grayscale8));
 
     // Read bands
     // This is simplified - you might want to handle different band types properly
@@ -332,7 +342,6 @@ void GeoTiffOverlay::updateTransform()
                 reportCplErrWarning(err, "GDALRasterBand::RasterIO call on alphaBand failed with ");
         }
 
-        // int usedBandCount = usedBandCount > 4 ? 4 : usedBandCount;
         for (int y = 0; y < heightGTPx; ++y) {
             uint8_t* scanline = image.scanLine(y);
             for (int x = 0; x < widthGTPx; ++x) {
@@ -355,16 +364,21 @@ void GeoTiffOverlay::updateTransform()
     // Now transform the image to match the map
     QRectF sourceRect(0, 0, widthGTPx, heightGTPx);
 
+    // FIXME: Serious performance issue here when zooming in at high zoom levels.
+    // TODO: transformed image should be sized to just the area to render...
+    // TODO: But if we do that, we need to render it with every viewportRegion change unless it is fully within the bounds of the viewport.
+    // TODO: Still, might not be too expensive.
     // Create a new image with the correct size for our map view
-    QImage transformedImage(targetRect.size().toSize(), QImage::Format_RGBA8888);
-    transformedImage.fill(Qt::transparent);
+    QSize sz = size().toSize();
+    QImage transformedImage(sz, QImage::Format_RGBA8888);
+    // transformedImage.fill(Qt::transparent);
 
     QPainter painter(&transformedImage);
 
     // Calculate the mapping from source to target
     QTransform mapTransform;
-    mapTransform.scale(targetRect.width() / sourceRect.width(),
-                       targetRect.height() / sourceRect.height());
+    mapTransform.scale(width() / sourceRect.width(),
+                       height() / sourceRect.height());
 
     // Draw the image with transformation
     painter.setTransform(mapTransform);
@@ -372,6 +386,7 @@ void GeoTiffOverlay::updateTransform()
     painter.end();
 
     m_transformedImage = transformedImage;
+    m_dirty = false;
     // QImageWriter w("/tmp/img.png");
     // // w.write(image);
     // w.setFileName("/tmp/img_xform.png");
@@ -384,6 +399,20 @@ QPointF GeoTiffOverlay::geoToPixel(const QGeoCoordinate &coord)
     if (!m_map)
         return QPointF(0, 0);
 
+    // qDebug() << "coord" << coord;
+    // QPointF topright(m_map->width(), 0);
+    // QPointF bottomleft(0, m_map->height());
+    // qDebug() << "topright" << topright << "bottomleft" << bottomleft;
+    // QGeoCoordinate topRightCoord = m_map->toCoordinate(topright, false);
+    // QGeoCoordinate bottomLeftCoord = m_map->toCoordinate(bottomleft, false);
+    // qDebug() << "topRightCoord" << topRightCoord << "bottomLeftCoord" << bottomLeftCoord;
+    // topright = m_map->fromCoordinate(topRightCoord, false);
+    // bottomleft = m_map->fromCoordinate(bottomLeftCoord, false);
+    // qDebug() << "topright" << topright << "bottomleft" << bottomleft;
+
+    QPointF point = m_map->fromCoordinate(coord, false);
+    // qDebug() << "point" << point;
+
     // Use Qt Location's mapping from geo coordinates to screen coordinates
-    return m_map->fromCoordinate(coord, false);
+    return point;
 }

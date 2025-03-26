@@ -28,12 +28,13 @@ signals:
 protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data) override;
 
+private:
+    void updateTransform();
+    void transformImage();
+    QPointF geoToPixel(const QGeoCoordinate &coord);
+
 private slots:
     void loadSource();
-
-    void updateTransform();
-
-    QPointF geoToPixel(const QGeoCoordinate &coord);
 
 private:
     QDeclarativeGeoMap *m_map = nullptr;
@@ -41,6 +42,7 @@ private:
     GDALDataset* m_dataset = nullptr;
     QList<double> m_geoTransform;
     OGRCoordinateTransformation* m_coordTransform = nullptr;
+    bool m_dirty = true;
     QImage m_transformedImage;
 };
 
