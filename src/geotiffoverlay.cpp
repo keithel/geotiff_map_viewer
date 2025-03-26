@@ -33,9 +33,7 @@ void GeoTiffOverlay::setSource(const QString &source)
         // Enable item to receive paint events if there is a map parent.
         setFlag(QQuickItem::ItemHasContents, true);
 
-        connect(m_map, &QDeclarativeGeoMap::centerChanged, this, &GeoTiffOverlay::updateTransform);
-        connect(m_map, &QDeclarativeGeoMap::zoomLevelChanged, this, &GeoTiffOverlay::updateTransform);
-        // connect(m_map, &QQuickItem::)
+        connect(m_map, &QDeclarativeGeoMap::visibleRegionChanged, this, &GeoTiffOverlay::updateTransform);
     }
 
     if (m_map && m_source != source) {
@@ -48,21 +46,6 @@ void GeoTiffOverlay::setSource(const QString &source)
 
 QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
-    // if (!m_map || !m_dataset || m_geoTransform.isEmpty())
-    //     return nullptr;
-
-    // // Create a texture with our transformed image
-    // if (m_transformedImage.isNull())
-    //     return nullptr;
-
-    // // Here you would create/update your QSGNode tree with the transformed image
-    // // For brevity, the full implementation is omitted, but you would:
-    // // 1. Create a texture from m_transformedImage
-    // // 2. Create/update a textured rectangle node
-    // // 3. Position the node correctly
-
-    // return oldNode; // Placeholder - actual implementation would return the updated node
-
     if (!m_map || !m_dataset || m_geoTransform.isEmpty() || m_transformedImage.isNull())
         return nullptr;
 
@@ -216,6 +199,11 @@ void GeoTiffOverlay::updateTransform()
 {
     qDebug() << "updateTransform";
     if (!m_map || !m_dataset || m_geoTransform.isEmpty())
+        return;
+
+    double mapWidth = m_map->width();
+    double mapHeight = m_map->height();
+    if (mapWidth <= 0 || mapHeight <= 0)
         return;
 
     // Get the visible region of the map
