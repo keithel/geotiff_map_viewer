@@ -1,5 +1,5 @@
-#ifndef GEOTIFFOVERLAY_H
-#define GEOTIFFOVERLAY_H
+#ifndef GEOTIFFQUICKITEM_H
+#define GEOTIFFQUICKITEM_H
 
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -10,15 +10,15 @@
 
 class QDeclarativeGeoMap;
 
-class GeoTiffOverlay : public QQuickItem
+class GeoTiffQuickItem : public QQuickItem
 {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QString source READ source WRITE setSource NOTIFY sourceChanged)
 
 public:
-    GeoTiffOverlay(QQuickItem *parent = nullptr);
-    ~GeoTiffOverlay();
+    GeoTiffQuickItem(QQuickItem *parent = nullptr);
+    ~GeoTiffQuickItem();
 
     inline QString source() const { return m_source; }
     void setSource(const QString &source);
@@ -47,4 +47,4 @@ private:
     QImage m_transformedImage;
 };
 
-#endif // GEOTIFFOVERLAY_H
+#endif // GEOTIFFQUICKITEM_H

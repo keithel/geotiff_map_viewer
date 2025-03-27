@@ -37,8 +37,8 @@ qt_add_qml_module(${PROJECT_BINARY_NAME}
         src/appconfig.cpp
         src/thunderforestconfigserver.h
         src/thunderforestconfigserver.cpp
-        src/geotiffoverlay.h
-        src/geotiffoverlay.cpp
+        src/geotiffquickitem.h
+        src/geotiffquickitem.cpp
 )
 
 # Leave for image resources, etc.

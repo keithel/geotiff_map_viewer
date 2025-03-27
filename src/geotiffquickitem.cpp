@@ -1,4 +1,4 @@
-#include "geotiffoverlay.h"
+#include "geotiffquickitem.h"
 #include <QPainter>
 #include <QSGTransformNode>
 #include <QSGSimpleTextureNode>
@@ -9,26 +9,26 @@
 
 #include <6.9.0/QtLocation/private/qdeclarativegeomap_p.h>
 
-GeoTiffOverlay::GeoTiffOverlay(QQuickItem *parent) : QQuickItem(parent)
+GeoTiffQuickItem::GeoTiffQuickItem(QQuickItem *parent) : QQuickItem(parent)
 {
     // Register GDAL drivers
     GDALAllRegister();
 }
 
-GeoTiffOverlay::~GeoTiffOverlay()
+GeoTiffQuickItem::~GeoTiffQuickItem()
 {}
 
-void GeoTiffOverlay::setSource(const QString &source)
+void GeoTiffQuickItem::setSource(const QString &source)
 {
     QQuickItem *p = parentItem();
     m_map = qobject_cast<QDeclarativeGeoMap *>(p);
     if (m_map == nullptr)
-        qWarning() << "Parent of GeoTiffOverlay must be a Qt Location `Map` item.";
+        qWarning() << "Parent of GeoTiffQuickItem must be a Qt Location `Map` item.";
     else {
         // Enable item to receive paint events if there is a map parent.
         setFlag(QQuickItem::ItemHasContents, true);
 
-        connect(m_map, &QDeclarativeGeoMap::visibleRegionChanged, this, &GeoTiffOverlay::updateTransform);
+        connect(m_map, &QDeclarativeGeoMap::visibleRegionChanged, this, &GeoTiffQuickItem::updateTransform);
         connect(m_map, &QDeclarativeGeoMap::zoomLevelChanged, this, [this](){
             m_dirty = true;
             updateTransform();
@@ -44,7 +44,7 @@ void GeoTiffOverlay::setSource(const QString &source)
     }
 }
 
-QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
+QSGNode *GeoTiffQuickItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
     if (!m_map || !m_dataset || m_geoTransform.empty() || m_transformedImage.isNull())
         return nullptr;
@@ -93,7 +93,7 @@ QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
     return rootNode;
 }
 
-void GeoTiffOverlay::loadSource()
+void GeoTiffQuickItem::loadSource()
 {
     // Close old dataset (on destruction) and Open GeoTIFF file
     m_dataset.reset(static_cast<GDALDataset*>(GDALOpen(m_source.toUtf8().constData(), GA_ReadOnly)));
@@ -177,7 +177,7 @@ void reportCplErrWarning(CPLErr errType, const QString& msg)
     qWarning() << msg << errTypeStr << ": " << CPLGetLastErrorMsg();
 }
 
-void GeoTiffOverlay::updateTransform()
+void GeoTiffQuickItem::updateTransform()
 {
     if (!m_map || !m_dataset || m_geoTransform.empty())
         return;
@@ -276,7 +276,7 @@ void GeoTiffOverlay::updateTransform()
         transformImage();
 }
 
-void GeoTiffOverlay::transformImage()
+void GeoTiffQuickItem::transformImage()
 {
     qDebug() << "Transform image";
     // Create a QImage from the GeoTIFF
@@ -387,7 +387,7 @@ void GeoTiffOverlay::transformImage()
     update(); // Request a redraw
 }
 
-QPointF GeoTiffOverlay::geoToPixel(const QGeoCoordinate &coord)
+QPointF GeoTiffQuickItem::geoToPixel(const QGeoCoordinate &coord)
 {
     if (!m_map)
         return QPointF(0, 0);

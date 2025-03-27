@@ -189,7 +189,7 @@ ApplicationWindow {
                     fieldOfView: mapBase.fieldOfView
                     z: mapBase.z + 1
 
-                    GeoTiffOverlay {
+                    GeoTiffQuickItem {
                         id: geotiffoverlay
                         opacity: (imgOpacityChoice.value*1.0)/100
                     }
