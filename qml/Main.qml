@@ -81,8 +81,9 @@ ApplicationWindow {
 
                 SpinBox {
                     id: imgZoomLevelChoice
-                    from: 10
-                    to: 200
+                    from: 100000
+                    to: 200000
+                    value: 143736
                     // stepSize: 5
                     WheelHandler { onWheel: (wheel) => { if(wheel.angleDelta.y > 0) imgZoomLevelChoice.increase(); else imgZoomLevelChoice.decrease() } }
                     hoverEnabled: true
@@ -189,7 +190,17 @@ ApplicationWindow {
                     fieldOfView: mapBase.fieldOfView
                     z: mapBase.z + 1
 
+                    MapQuickItem {
+                        zoomLevel:(imgZoomLevelChoice.value*1.0)/10000
+                        coordinate: QtPositioning.coordinate(53.0000285, 21.8333048)
+                        opacity: (imgOpacityChoice.value*1.0)/100
+                        sourceItem: Image {
+                            source: "file:///home/kyzik/Build/l3h-insight/geotiff_viewer/2868_000_geo-projected.tif"
+                        }
+                    }
+
                     GeoTiffQuickItem {
+                        // visible: false
                         id: geotiffoverlay
                         opacity: (imgOpacityChoice.value*1.0)/100
                     }
