@@ -41,7 +41,7 @@ private:
     QDeclarativeGeoMap *m_map = nullptr;
     QString m_source;
     std::unique_ptr<GDALDataset> m_dataset;
-    QList<double> m_geoTransform;
+    std::vector<double> m_geoTransform;
     std::unique_ptr<OGRCoordinateTransformation> m_coordTransform;
     bool m_dirty = true;
     QImage m_transformedImage;

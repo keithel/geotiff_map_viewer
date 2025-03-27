@@ -46,7 +46,7 @@ void GeoTiffOverlay::setSource(const QString &source)
 
 QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
 {
-    if (!m_map || !m_dataset || m_geoTransform.isEmpty() || m_transformedImage.isNull())
+    if (!m_map || !m_dataset || m_geoTransform.empty() || m_transformedImage.isNull())
         return nullptr;
 
     // Cast the oldNode to a QSGTransformNode, or create a new one if it doesn't exist
@@ -103,17 +103,11 @@ void GeoTiffOverlay::loadSource()
     }
 
     // Get geotransform information
-    double geoTransform[6];
-    if (m_dataset->GetGeoTransform(geoTransform) != CE_None) {
+    m_geoTransform.resize(6);
+    if (m_dataset->GetGeoTransform(m_geoTransform.data()) != CE_None) {
         qWarning() << "Failed to get geotransform from GeoTIFF";
         m_dataset.reset();
         return;
-    }
-
-    // Store the geotransform
-    m_geoTransform.clear();
-    for (int i = 0; i < 6; ++i) {
-        m_geoTransform.append(geoTransform[i]);
     }
 
     // Get projection information
@@ -185,7 +179,7 @@ void reportCplErrWarning(CPLErr errType, const QString& msg)
 
 void GeoTiffOverlay::updateTransform()
 {
-    if (!m_map || !m_dataset || m_geoTransform.isEmpty())
+    if (!m_map || !m_dataset || m_geoTransform.empty())
         return;
 
     double mapWidth = m_map->width();
