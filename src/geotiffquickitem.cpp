@@ -115,10 +115,12 @@ void GeoTiffQuickItem::loadSource()
     if (projWkt && strlen(projWkt) > 0) {
         OGRSpatialReference srcSRS;
         srcSRS.importFromWkt(projWkt);
+        qDebug() << "srcSRS:" << srcSRS.GetName() << (srcSRS.IsGeographic() ? "Geographic" : srcSRS.IsProjected() ? "Projected" : "");
 
-        // Create destination SRS (EPSG:4326, which Qt Location uses)
+        // Create destination SRS (EPSG:3857 - WGS84/Pseudo-Mercator, which Qt Location uses)
         OGRSpatialReference dstSRS;
         dstSRS.importFromEPSG(4326);
+        qDebug() << "dstSRS:" << dstSRS.GetName() << (dstSRS.IsGeographic() ? "Geographic" : dstSRS.IsProjected() ? "Projected" : "");
 
         // Create transform between the two SRS
         m_coordTransform.reset(OGRCreateCoordinateTransformation(&srcSRS, &dstSRS));
@@ -253,6 +255,8 @@ void GeoTiffQuickItem::updateTransform()
         maxX = std::max({pointsX[0], pointsX[1], pointsX[2], pointsX[3]});
         minY = std::min({pointsY[0], pointsY[1], pointsY[2], pointsY[3]});
         maxY = std::max({pointsY[0], pointsY[1], pointsY[2], pointsY[3]});
+
+        qDebug() << "maxX-minX:" << maxX-minX << "maxY-minY:" << maxY-minY;
     }
 
     // Calculate the pixel coordinates of the GeoTIFF corners
