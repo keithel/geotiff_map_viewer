@@ -224,25 +224,35 @@ void GeoTiffOverlay::updateTransform()
 
     // Transform these coordinates if needed
     if (m_coordTransform) {
-        double points[] = {
-            minX, minY,
-            maxX, minY,
-            maxX, maxY,
-            minX, maxY
+        double pointsX1[] = {
+            minX, maxX,
+            maxX, minX,
+        };
+        double pointsX[] = {
+            minX, maxX,
+            maxX, minX,
+        };
+        double pointsY1[] = {
+            minY, minY,
+            maxY, maxY
+        };
+        double pointsY[] = {
+            minY, minY,
+            maxY, maxY
         };
 
         // Transform all corners. For the austro-hungarian empire geotiffs, this results in no change,
         // after the call. I believe this is because both the source and destination SRS are the same.
-        if (!m_coordTransform->Transform(4, points, points + 1, nullptr, nullptr)) {
+        if (!m_coordTransform->Transform(4, pointsX, pointsY, nullptr, nullptr)) {
             qWarning() << "Coordinate transformation failed";
             return;
         }
 
         // Update min/max values
-        minX = std::min({points[0], points[2], points[4], points[6]});
-        maxX = std::max({points[0], points[2], points[4], points[6]});
-        minY = std::min({points[1], points[3], points[5], points[7]});
-        maxY = std::max({points[1], points[3], points[5], points[7]});
+        minX = std::min({pointsX[0], pointsX[1], pointsX[2], pointsX[3]});
+        maxX = std::max({pointsX[0], pointsX[1], pointsX[2], pointsX[3]});
+        minY = std::min({pointsY[0], pointsY[1], pointsY[2], pointsY[3]});
+        maxY = std::max({pointsY[0], pointsY[1], pointsY[2], pointsY[3]});
     }
 
     // Calculate the pixel coordinates of the GeoTIFF corners
