@@ -16,11 +16,7 @@ GeoTiffOverlay::GeoTiffOverlay(QQuickItem *parent) : QQuickItem(parent)
 }
 
 GeoTiffOverlay::~GeoTiffOverlay()
-{
-    if (m_dataset) {
-        GDALClose(m_dataset);
-    }
-}
+{}
 
 void GeoTiffOverlay::setSource(const QString &source)
 {
@@ -99,14 +95,8 @@ QSGNode *GeoTiffOverlay::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *
 
 void GeoTiffOverlay::loadSource()
 {
-    // Close previous dataset if any
-    if (m_dataset) {
-        GDALClose(m_dataset);
-        m_dataset = nullptr;
-    }
-
-    // Open GeoTIFF file
-    m_dataset = static_cast<GDALDataset*>(GDALOpen(m_source.toUtf8().constData(), GA_ReadOnly));
+    // Close old dataset (on destruction) and Open GeoTIFF file
+    m_dataset.reset(static_cast<GDALDataset*>(GDALOpen(m_source.toUtf8().constData(), GA_ReadOnly)));
     if (!m_dataset) {
         qWarning() << "Failed to open GeoTIFF file:" << m_source;
         return;
@@ -116,8 +106,7 @@ void GeoTiffOverlay::loadSource()
     double geoTransform[6];
     if (m_dataset->GetGeoTransform(geoTransform) != CE_None) {
         qWarning() << "Failed to get geotransform from GeoTIFF";
-        GDALClose(m_dataset);
-        m_dataset = nullptr;
+        m_dataset.reset();
         return;
     }
 
@@ -138,7 +127,7 @@ void GeoTiffOverlay::loadSource()
         dstSRS.importFromEPSG(4326);
 
         // Create transform between the two SRS
-        m_coordTransform = OGRCreateCoordinateTransformation(&srcSRS, &dstSRS);
+        m_coordTransform.reset(OGRCreateCoordinateTransformation(&srcSRS, &dstSRS));
         if (!m_coordTransform) {
             qWarning() << "Failed to create coordinate transformation";
         }

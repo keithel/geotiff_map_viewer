@@ -5,6 +5,7 @@
 #include <QQuickItem>
 #include <QImage>
 #include <QGeoCoordinate>
+#include <memory>
 #include <gdal_priv.h>
 
 class QDeclarativeGeoMap;
@@ -39,9 +40,9 @@ private slots:
 private:
     QDeclarativeGeoMap *m_map = nullptr;
     QString m_source;
-    GDALDataset* m_dataset = nullptr;
+    std::unique_ptr<GDALDataset> m_dataset;
     QList<double> m_geoTransform;
-    OGRCoordinateTransformation* m_coordTransform = nullptr;
+    std::unique_ptr<OGRCoordinateTransformation> m_coordTransform;
     bool m_dirty = true;
     QImage m_transformedImage;
 };
